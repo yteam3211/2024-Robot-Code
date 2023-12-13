@@ -3,12 +3,14 @@ package frc.robot.subsystems;
 import frc.robot.SwerveModule;
 import frc.robot.dashboard.SuperSystem;
 import frc.util.PID.Gains;
+import frc.util.vision.Limelight;
 import frc.robot.Constants;
 import frc.robot.RobotButtons;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
 import edu.wpi.first.math.kinematics.SwerveDriveOdometry;
 import edu.wpi.first.math.kinematics.SwerveModulePosition;
+import edu.wpi.first.math.estimator.SwerveDrivePoseEstimator;
 
 // import com.ctre.phoenix.sensors.Pigeon2;
 
@@ -25,11 +27,15 @@ import edu.wpi.first.wpilibj.SPI;
 
 public class Swerve extends SuperSystem {
     public SwerveDriveOdometry swerveOdometry;
+    public SwerveDrivePoseEstimator poseEstimator;
     public SwerveModule[] mSwerveMods;
+    public Limelight limelight;
     public static final AHRS gyro = new AHRS(SPI.Port.kMXP);
 
-    public Swerve() {
+    public Swerve(Limelight limelight) {
         super("Swerve");
+        limelight.setPipeline(4);
+        this.limelight = limelight;
         zeroGyro();
         mSwerveMods = new SwerveModule[] {
             new SwerveModule(0, Constants.SwerveConstant.Mod0.constants),
@@ -45,6 +51,7 @@ public class Swerve extends SuperSystem {
         resetModulesToAbsolute();
 
         swerveOdometry = new SwerveDriveOdometry(Constants.SwerveConstant.swerveKinematics, getYaw(), getModulePositions());
+        poseEstimator = new SwerveDrivePoseEstimator(Constants.SwerveConstant.swerveKinematics, getYaw(), getModulePositions(), new Pose2d());
     }
 
     public void drive(Translation2d translation, double rotation, boolean isOpenLoop) {
@@ -86,11 +93,11 @@ public class Swerve extends SuperSystem {
     }    
 
     public Pose2d getPose() {
-        return swerveOdometry.getPoseMeters();
+        return poseEstimator.getEstimatedPosition();
     }
 
     public void resetOdometry(Pose2d pose) {
-        swerveOdometry.resetPosition(getYaw(), getModulePositions(), pose);
+        poseEstimator.resetPosition(getYaw(), getModulePositions(), pose);
     }
 
     public SwerveModuleState[] getModuleStates(){
@@ -128,14 +135,22 @@ public class Swerve extends SuperSystem {
     public void periodic(){
         getTab().putInDashboard("pose y", getPose().getX(), false);
         getTab().putInDashboard("pose x", getPose().getY(), false);
-        getTab().putInDashboard("yaw", gyro.getYaw(), false);
-        getTab().putInDashboard("roll", gyro.getRoll(), false);
-        getTab().putInDashboard("pitch", gyro.getPitch(), false);
+        getTab().putInDashboard("LL x pos", limelight.getBotpose()[0], false);
+        getTab().putInDashboard("LL y pos", limelight.getBotpose()[1], false);
+        
+        // getTab().putInDashboard("yaw", gyro.getYaw(), false);
+        // getTab().putInDashboard("roll", gyro.getRoll(), false);
+        // getTab().putInDashboard("pitch", gyro.getPitch(), false);
         swerveOdometry.update(getYaw(), getModulePositions());  
-        for(SwerveModule mod : mSwerveMods){
-            getTab().putInDashboard("Mod " + mod.moduleNumber + " Cancoder", mod.getCanCoder().getDegrees(), false);
-            getTab().putInDashboard("Mod " + mod.moduleNumber + " Integrated", mod.getPosition().angle.getDegrees(), false);
-            getTab().putInDashboard("Mod " + mod.moduleNumber + " Velocity", mod.getState().speedMetersPerSecond, false);    
+        if(limelight.isValid()){
+            poseEstimator.update(getYaw(), getModulePositions());
+            Pose2d camPose = new Pose2d(limelight.getBotpose()[0], limelight.getBotpose()[1], getYaw());
+            poseEstimator.addVisionMeasurement(camPose, limelight.getLatency());
         }
+        // for(SwerveModule mod : mSwerveMods){
+        //     getTab().putInDashboard("Mod " + mod.moduleNumber + " Cancoder", mod.getCanCoder().getDegrees(), false);
+        //     getTab().putInDashboard("Mod " + mod.moduleNumber + " Integrated", mod.getPosition().angle.getDegrees(), false);
+        //     getTab().putInDashboard("Mod " + mod.moduleNumber + " Velocity", mod.getState().speedMetersPerSecond, false);    
+        // }
     }
 }

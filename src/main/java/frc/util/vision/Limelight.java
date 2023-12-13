@@ -41,6 +41,7 @@ public class Limelight extends SubsystemBase {
   protected NetworkTableEntry cameraMode;
   protected NetworkTableEntry streamMode;
   protected NetworkTableEntry pipeline;
+  protected NetworkTableEntry botpose;
 
   protected double tx_ = 0, ty_ = 0, ta_ = 0, ts_ = 0;
   protected double pipeline_ = 0;
@@ -210,6 +211,13 @@ public class Limelight extends SubsystemBase {
     return ts_;
   }
 
+  public double getLatency(){
+    return limelightTable.getEntry("tl").getDouble(0);
+  }
+
+  public double[] getBotpose(){
+    return limelightTable.getEntry("botpose").getDoubleArray(new double[0]);
+  }
   /**
    * @return true if valid.
    */
